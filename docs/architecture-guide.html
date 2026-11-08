@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Three-Live 项目全图解 — 一段代码,跑遍网页、手机与 AR 眼镜</title>
+<style>
+:root{
+  --bg:#070b18; --bg2:#0a1022; --surface:#0e1630; --surface2:#131d3d; --overlay:#182450;
+  --line:#243158; --line2:#31427a;
+  --text:#e6ecfb; --muted:#96a2c6; --dim:#6b779c;
+  --cyan:#38bdf8; --cyan-deep:#0ea5e9; --indigo:#6366f1; --magenta:#e879f9; --pink:#f472b6;
+  --amber:#fbbf24; --green:#4ade80; --red:#f87171; --blue:#60a5fa;
+  --grad-hero:linear-gradient(120deg,#38bdf8 0%,#6366f1 45%,#e879f9 100%);
+  --mono:"Cascadia Code","JetBrains Mono",Consolas,"Courier New",monospace;
+  --sans:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,-apple-system,sans-serif;
+  --nav-h:60px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--nav-h) + 16px)}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.7;overflow-x:hidden}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,var(--cyan-deep),var(--indigo));border-radius:6px;border:2px solid var(--bg2)}
+::-webkit-scrollbar-thumb:hover{background:linear-gradient(180deg,var(--cyan),var(--magenta))}
+::selection{background:rgba(56,189,248,.35)}
+
+/* ---------- 背景层 ---------- */
+.bg-fx{position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(900px 600px at 85% -5%,rgba(99,102,241,.16),transparent 60%),
+    radial-gradient(800px 500px at -10% 30%,rgba(56,189,248,.10),transparent 60%),
+    radial-gradient(700px 600px at 60% 110%,rgba(232,121,249,.08),transparent 60%),
+    var(--bg);}
+.bg-grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");}
+.orb{position:fixed;border-radius:50%;filter:blur(70px);z-index:-1;pointer-events:none;opacity:.35;animation:drift 22s ease-in-out infinite alternate}
+.orb.o1{width:420px;height:420px;background:#1d4ed8;top:-140px;right:-100px}
+.orb.o2{width:340px;height:340px;background:#7c3aed;bottom:-120px;left:-90px;animation-delay:-8s}
+.orb.o3{width:240px;height:240px;background:#0e7490;top:45%;left:55%;animation-delay:-14s;opacity:.22}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(-60px,50px) scale(1.15)}}
+
+/* ---------- 导航 ---------- */
+nav{position:fixed;top:0;left:0;right:0;height:var(--nav-h);z-index:100;
+  display:flex;align-items:center;gap:8px;padding:0 clamp(12px,3vw,32px);
+  background:rgba(8,12,26,.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px;letter-spacing:.5px;white-space:nowrap;color:var(--text);text-decoration:none}
+.logo .cube{width:22px;height:22px;position:relative;flex:none}
+.logo .cube svg{display:block}
+.logo em{font-style:normal;background:var(--grad-hero);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.nav-links{display:flex;gap:2px;margin-left:auto;overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-links a{color:var(--muted);text-decoration:none;font-size:13.5px;padding:7px 12px;border-radius:8px;white-space:nowrap;transition:.2s;border:1px solid transparent}
+.nav-links a:hover{color:var(--text);background:var(--surface)}
+.nav-links a.active{color:var(--cyan);background:rgba(56,189,248,.10);border-color:rgba(56,189,248,.3)}
+
+/* ---------- 通用 ---------- */
+main{max-width:1180px;margin:0 auto;padding:0 clamp(14px,3vw,28px)}
+section{padding:76px 0 30px}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;letter-spacing:2px;color:var(--acc,var(--cyan));text-transform:uppercase;margin-bottom:10px}
+.kicker::before{content:"";width:26px;height:2px;background:var(--acc,var(--cyan));border-radius:2px}
+h2{font-size:clamp(24px,3.4vw,34px);font-weight:800;line-height:1.3;margin-bottom:8px}
+h2 .hl{background:var(--grad-hero);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.lede{color:var(--muted);font-size:15.5px;max-width:760px;margin-bottom:26px}
+.lede b,.plain b{color:var(--text)}
+.plain{background:linear-gradient(135deg,rgba(56,189,248,.08),rgba(99,102,241,.08));border:1px solid rgba(56,189,248,.22);border-left:4px solid var(--cyan);border-radius:12px;padding:14px 18px;font-size:14.5px;color:#c4d2f0;margin:18px 0}
+.plain .tag{display:inline-block;font-size:11.5px;font-weight:800;color:var(--cyan);letter-spacing:1px;margin-right:8px}
+.card{background:linear-gradient(160deg,var(--surface),var(--bg2));border:1px solid var(--line);border-radius:16px;padding:20px;transition:border-color .25s,transform .25s,box-shadow .25s}
+.card:hover{border-color:var(--line2)}
+code,.mono{font-family:var(--mono);font-size:.92em}
+code{background:rgba(56,189,248,.10);border:1px solid rgba(56,189,248,.18);color:#a5d8f8;padding:1px 6px;border-radius:6px}
+.reveal{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* ---------- Hero ---------- */
+.hero{min-height:92vh;display:flex;flex-direction:column;justify-content:center;padding-top:calc(var(--nav-h) + 40px);position:relative}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;align-self:flex-start;font-size:12.5px;color:var(--green);background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);padding:5px 14px;border-radius:99px;margin-bottom:22px}
+.hero-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.hero h1{font-size:clamp(28px,4.8vw,48px);font-weight:900;line-height:1.28;letter-spacing:-.5px;max-width:1000px}
+.hero h1 .grad{background:var(--grad-hero);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero .sub{color:var(--muted);font-size:clamp(15px,1.8vw,18px);max-width:720px;margin:20px 0 30px}
+.hero .sub b{color:var(--cyan)}
+.hero-stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:38px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 22px;min-width:150px}
+.stat .num{font-size:26px;font-weight:800;font-family:var(--mono)}
+.stat:nth-child(1) .num{color:var(--cyan)}.stat:nth-child(2) .num{color:var(--magenta)}.stat:nth-child(3) .num{color:var(--amber)}.stat:nth-child(4) .num{color:var(--green)}
+.stat .lbl{font-size:12.5px;color:var(--muted)}
+.analogy{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:stretch}
+.analogy .step{position:relative;background:linear-gradient(160deg,var(--surface2),var(--surface));border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;text-align:left}
+.analogy .step .ico{font-size:26px;line-height:1;margin-bottom:8px;display:block}
+.analogy .step h4{font-size:15px;margin-bottom:4px}
+.analogy .step p{font-size:12.8px;color:var(--muted);line-height:1.6}
+.analogy .step .real{display:block;margin-top:8px;font-size:11.5px;font-family:var(--mono);color:var(--cyan)}
+.analogy .arrow{display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:20px}
+.scroll-hint{margin-top:44px;color:var(--dim);font-size:12.5px;display:flex;align-items:center;gap:8px}
+.scroll-hint .chev{animation:bob 1.6s infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+
+/* ---------- 架构图 ---------- */
+#arch{--acc:var(--cyan)}
+.arch-wrap{position:relative}
+.arch-layer{margin-bottom:6px}
+.arch-layer .layer-head{display:flex;align-items:baseline;gap:12px;margin:18px 0 10px}
+.arch-layer .layer-head .no{font-family:var(--mono);font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:1px 8px}
+.arch-layer .layer-head h3{font-size:16.5px}
+.arch-layer .layer-head .hint{font-size:12.5px;color:var(--dim)}
+.arch-nodes{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.anode{cursor:pointer;text-align:left;font-family:var(--sans);color:var(--text);background:linear-gradient(160deg,var(--surface2),var(--surface));border:1px solid var(--line);border-radius:13px;padding:13px 15px;transition:.22s;position:relative;overflow:hidden}
+.anode::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--nc,var(--cyan));opacity:.85}
+.anode:hover{transform:translateY(-3px);border-color:var(--nc,var(--cyan));box-shadow:0 8px 26px -10px rgba(0,0,0,.7),0 0 0 1px var(--nc,var(--cyan)) inset}
+.anode .t{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
+.anode .t .ic{font-size:16px}
+.anode .d{font-size:12.3px;color:var(--muted);margin-top:3px;line-height:1.55}
+.anode .f{font-family:var(--mono);font-size:10.8px;color:var(--dim);margin-top:6px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arch-flow{display:flex;justify-content:center;padding:2px 0;color:var(--dim)}
+.arch-flow svg{display:block}
+.arch-flow .flowline{stroke-dasharray:5 6;animation:flowdash 1.2s linear infinite}
+@keyframes flowdash{to{stroke-dashoffset:-11}}
+.arch-tip{font-size:12.5px;color:var(--dim);text-align:center;margin-top:14px}
+.arch-tip kbd{border:1px solid var(--line2);border-radius:5px;padding:0 6px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+/* 详情抽屉 */
+.drawer-scrim{position:fixed;inset:0;background:rgba(4,6,14,.6);backdrop-filter:blur(3px);z-index:200;opacity:0;pointer-events:none;transition:.3s}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(430px,94vw);z-index:201;background:linear-gradient(180deg,var(--overlay),var(--surface));border-left:1px solid var(--line2);transform:translateX(105%);transition:transform .35s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,.5)}
+.drawer.open{transform:none}
+.drawer-scrim.open{opacity:1;pointer-events:auto}
+.drawer .dhead{padding:20px 22px 14px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:12px}
+.drawer .dhead .dic{font-size:26px}
+.drawer .dhead h3{font-size:18px;line-height:1.4}
+.drawer .dhead .sub{font-size:12px;color:var(--dim);font-family:var(--mono);margin-top:2px;word-break:break-all}
+.drawer .dclose{margin-left:auto;flex:none;background:var(--surface2);border:1px solid var(--line2);color:var(--muted);width:32px;height:32px;border-radius:9px;cursor:pointer;font-size:15px;transition:.2s}
+.drawer .dclose:hover{color:var(--text);border-color:var(--red)}
+.drawer .dbody{padding:18px 22px;overflow-y:auto;flex:1}
+.drawer .plain{margin:0 0 16px}
+.drawer h5{font-size:12.5px;letter-spacing:1.5px;color:var(--cyan);margin:16px 0 8px}
+.drawer ul{list-style:none}
+.drawer ul li{font-size:13.5px;color:#c4d2f0;padding:7px 0 7px 20px;position:relative;border-bottom:1px dashed rgba(49,66,122,.4)}
+.drawer ul li::before{content:"▸";position:absolute;left:2px;color:var(--cyan)}
+.drawer pre{background:#060a16;border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-family:var(--mono);font-size:12px;color:#a5d8f8;overflow-x:auto;line-height:1.65;margin-top:8px}
+
+/* ---------- Bundle ---------- */
+#bundles{--acc:var(--amber)}
+.tabs{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:4px;gap:4px;margin-bottom:20px}
+.tabs button{font-family:var(--sans);font-size:13.5px;font-weight:700;color:var(--muted);background:none;border:none;border-radius:8px;padding:8px 18px;cursor:pointer;transition:.2s}
+.tabs button.on{color:#0a0f1e;background:linear-gradient(120deg,var(--cyan),var(--indigo))}
+.bundle-list{display:flex;flex-direction:column;gap:10px}
+.brow{display:grid;grid-template-columns:230px 1fr 92px;gap:16px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 18px;transition:.2s}
+.brow:hover{border-color:var(--line2);background:var(--surface2)}
+.brow .bname{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text)}
+.brow .bdesc{font-size:12px;color:var(--muted);display:block;font-family:var(--sans);font-weight:400;margin-top:2px;line-height:1.5}
+.bbar{height:12px;background:var(--bg2);border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+.bbar i{display:block;height:100%;border-radius:7px;width:0;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.bsize{font-family:var(--mono);font-size:13px;text-align:right;font-weight:700}
+.brow.base .bsize{color:var(--cyan)}.brow.addon .bsize{color:var(--amber)}.brow.full .bsize{color:var(--magenta)}
+.brow.full{border-color:rgba(232,121,249,.35);background:linear-gradient(120deg,rgba(232,121,249,.07),var(--surface))}
+.bundle-note{font-size:12.5px;color:var(--dim);margin-top:12px}
+@media(max-width:720px){.brow{grid-template-columns:1fr 80px}.brow .bbar{grid-column:1/-1;order:3}}
+
+/* ---------- 时序图 ---------- */
+#sequence{--acc:var(--magenta)}
+.seq-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.seq-controls button{font-family:var(--sans);font-size:13px;font-weight:700;border-radius:9px;padding:8px 16px;cursor:pointer;border:1px solid var(--line2);background:var(--surface2);color:var(--text);transition:.2s;display:inline-flex;align-items:center;gap:6px}
+.seq-controls button:hover{border-color:var(--cyan);color:var(--cyan)}
+.seq-controls button.primary{background:linear-gradient(120deg,var(--cyan-deep),var(--indigo));border:none;color:#fff;min-width:96px;justify-content:center}
+.seq-controls button.primary:hover{filter:brightness(1.15);color:#fff}
+.seq-controls select{font-family:var(--sans);font-size:13px;background:var(--surface2);color:var(--text);border:1px solid var(--line2);border-radius:9px;padding:8px 10px;cursor:pointer}
+.seq-progress{margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.seq-stage{background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:10px 6px 4px;overflow-x:auto}
+.seq-stage svg{display:block;min-width:760px;width:100%;height:auto}
+.seq-swipe{display:none;font-size:12px;color:var(--dim);margin-top:8px;text-align:center}
+@media(max-width:820px){.seq-swipe{display:block}}
+.seq-caption{margin-top:14px;background:linear-gradient(135deg,rgba(232,121,249,.07),rgba(99,102,241,.07));border:1px solid rgba(232,121,249,.25);border-radius:13px;padding:15px 18px;min-height:96px}
+.seq-caption .st{font-size:14.5px;font-weight:800;color:var(--magenta);display:flex;gap:10px;align-items:baseline}
+.seq-caption .st .n{font-family:var(--mono);font-size:12px;color:var(--dim)}
+.seq-caption .sd{font-size:13.5px;color:#c4d2f0;margin-top:5px}
+.seq-dots{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap}
+.seq-dots button{width:26px;height:8px;border-radius:5px;border:none;background:var(--line);cursor:pointer;transition:.25s;padding:0}
+.seq-dots button.done{background:var(--indigo)}
+.seq-dots button.cur{background:var(--magenta);box-shadow:0 0 8px rgba(232,121,249,.7)}
+
+/* ---------- 编译流水线 ---------- */
+#pipeline{--acc:var(--green)}
+.pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:0;align-items:stretch;margin:22px 0 8px}
+.pipe .pstage{position:relative;background:linear-gradient(170deg,var(--surface2),var(--surface));border:1px solid var(--line);border-radius:14px;padding:16px 14px;margin-right:26px;transition:.25s}
+.pipe .pstage:last-child{margin-right:0}
+.pipe .pstage::after{content:"➜";position:absolute;right:-23px;top:50%;transform:translateY(-50%);color:var(--green);font-size:16px;text-shadow:0 0 12px rgba(74,222,128,.6)}
+.pipe .pstage:last-child::after{display:none}
+.pipe .pstage:hover{border-color:var(--green);transform:translateY(-3px)}
+.pipe .pstage .pic{font-size:22px;margin-bottom:8px}
+.pipe .pstage h4{font-size:14px;margin-bottom:5px}
+.pipe .pstage p{font-size:12px;color:var(--muted);line-height:1.6}
+.pipe .pstage .chip{display:inline-block;margin-top:9px;font-family:var(--mono);font-size:10.5px;color:var(--green);background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:6px;padding:2px 7px}
+@media(max-width:900px){.pipe{grid-template-columns:1fr;gap:24px}.pipe .pstage{margin-right:0}.pipe .pstage::after{content:"⬇";right:auto;left:50%;top:auto;bottom:-22px;transform:translateX(-50%)}}
+.parity{display:grid;grid-template-columns:1fr 1.2fr;gap:18px;margin-top:30px;align-items:stretch}
+@media(max-width:820px){.parity{grid-template-columns:1fr}}
+.parity .src{display:flex;flex-direction:column;justify-content:center;text-align:center;background:linear-gradient(150deg,rgba(56,189,248,.12),rgba(99,102,241,.10));border:1px solid rgba(56,189,248,.35)}
+.parity .src .big{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--cyan);word-break:break-all}
+.parity .targets{display:flex;flex-direction:column;gap:10px}
+.ptarget{display:flex;gap:14px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:12px 16px}
+.ptarget .pic{font-size:22px;flex:none}
+.ptarget h4{font-size:14px}
+.ptarget p{font-size:12px;color:var(--muted)}
+.ptarget .ok{margin-left:auto;flex:none;font-size:11px;font-weight:800;color:var(--green);border:1px solid rgba(74,222,128,.4);background:rgba(74,222,128,.08);padding:3px 9px;border-radius:99px;white-space:nowrap}
+
+/* ---------- 技术细节 ---------- */
+#tech{--acc:var(--indigo)}
+.tech-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,430px),1fr));gap:14px;margin-bottom:26px}
+.tcard h4{font-size:15px;display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.tcard h4 .ic{font-size:18px}
+.tcard p{font-size:13px;color:var(--muted);line-height:1.7}
+.tcard .mini{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--cyan);background:rgba(56,189,248,.06);border:1px solid rgba(56,189,248,.15);border-radius:8px;padding:7px 10px;line-height:1.7}
+.quota-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:12.5px}
+.quota-table td{padding:5px 8px;border-bottom:1px dashed rgba(49,66,122,.4);color:var(--muted)}
+.quota-table td:last-child{text-align:right;font-family:var(--mono);color:var(--amber)}
+.trait-box{display:grid;grid-template-columns:250px 1fr;gap:16px;margin-top:8px}
+@media(max-width:820px){.trait-box{grid-template-columns:1fr}}
+.trait-list{display:flex;flex-direction:column;gap:6px;max-height:430px;overflow-y:auto;padding-right:4px}
+.trait-list button{font-family:var(--sans);text-align:left;background:var(--surface);border:1px solid var(--line);color:var(--muted);border-radius:10px;padding:9px 13px;cursor:pointer;font-size:13px;transition:.18s;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.trait-list button .en{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.trait-list button:hover{border-color:var(--line2);color:var(--text)}
+.trait-list button.on{background:linear-gradient(120deg,rgba(99,102,241,.18),rgba(56,189,248,.10));border-color:var(--indigo);color:var(--text)}
+.trait-list button.on .en{color:var(--cyan)}
+.trait-detail{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:20px}
+.trait-detail h4{font-size:17px;margin-bottom:2px}
+.trait-detail .ten{font-family:var(--mono);font-size:12px;color:var(--indigo);margin-bottom:12px;display:block}
+.trait-detail .ana{font-size:13.5px;color:#c4d2f0;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.22);border-left:3px solid var(--amber);border-radius:9px;padding:10px 14px;margin-bottom:14px}
+.trait-detail .ana b{color:var(--amber)}
+.trait-detail pre{background:#060a16;border:1px solid var(--line);border-radius:10px;padding:14px;font-family:var(--mono);font-size:12.3px;color:#a5d8f8;overflow-x:auto;line-height:1.7}
+.trait-detail .use{font-size:12.5px;color:var(--muted);margin-top:12px}
+.trait-detail .use b{color:var(--green)}
+
+/* ---------- 设计思路 ---------- */
+#design{--acc:var(--pink)}
+.design-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:14px}
+.dcard{position:relative;overflow:hidden}
+.dcard::before{content:attr(data-n);position:absolute;right:10px;top:-14px;font-size:74px;font-weight:900;font-family:var(--mono);color:rgba(99,102,241,.10);line-height:1}
+.dcard .ic{font-size:24px;margin-bottom:10px;display:block}
+.dcard h4{font-size:16px;margin-bottom:7px}
+.dcard .why{font-size:13px;color:var(--muted);line-height:1.75}
+.dcard .how{margin-top:11px;font-size:12.3px;color:#c4d2f0;border-top:1px dashed var(--line2);padding-top:10px}
+.dcard .how b{color:var(--pink)}
+
+/* ---------- AI 闭环 ---------- */
+#loop{--acc:var(--amber)}
+.loop-wrap{display:grid;grid-template-columns:1.1fr 1fr;gap:22px;align-items:center}
+@media(max-width:860px){.loop-wrap{grid-template-columns:1fr}}
+.loop-svg-box{background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:12px}
+.loop-svg-box svg{width:100%;height:auto;display:block}
+.loop-node{cursor:pointer}
+.loop-node circle{transition:.25s}
+.loop-node:hover circle.hit{stroke-width:3}
+.loop-info .li-step{font-family:var(--mono);font-size:12px;color:var(--amber);letter-spacing:1px}
+.loop-info h4{font-size:19px;margin:4px 0 8px}
+.loop-info p{font-size:13.8px;color:var(--muted);line-height:1.8}
+.loop-info .cmd{margin-top:12px;background:#060a16;border:1px solid var(--line);border-radius:10px;padding:11px 14px;font-family:var(--mono);font-size:12px;color:var(--green);overflow-x:auto;white-space:pre}
+.mcp-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.mcp-chips span{font-family:var(--mono);font-size:11.5px;color:var(--cyan);background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.25);border-radius:99px;padding:4px 12px}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--line);margin-top:70px;padding:30px 0 44px;color:var(--dim);font-size:12.5px}
+footer .fw{max-width:1180px;margin:0 auto;padding:0 clamp(14px,3vw,28px);display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
+footer a{color:var(--muted);text-decoration:none}
+footer a:hover{color:var(--cyan)}
+@media(max-width:640px){
+  .hero{min-height:auto;padding-bottom:30px}
+  .nav-links a{padding:7px 9px;font-size:12.5px}
+  section{padding:56px 0 20px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+<div class="bg-fx"></div><div class="bg-grain"></div>
+<div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+
+<nav>
+  <a class="logo" href="#top">
+    <span class="cube"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 2 21 7v10l-9 5-3-5V7z" fill="none" stroke="#38bdf8" stroke-width="1.6"/><path d="M12 2v10m0 0 9-5m-9 5-9-5m9 5v10" fill="none" stroke="#e879f9" stroke-width="1.2" opacity=".8"/></svg></span>
+    Three-<em>Live</em>&nbsp;全图解
+  </a>
+  <div class="nav-links" id="navLinks">
+    <a href="#top" class="active">首页</a>
+    <a href="#arch">全景架构</a>
+    <a href="#bundles">组件选型</a>
+    <a href="#sequence">运行时序</a>
+    <a href="#pipeline">编译流水线</a>
+    <a href="#tech">技术细节</a>
+    <a href="#design">设计思路</a>
+    <a href="#loop">AI 闭环</a>
+  </div>
+</nav>
+
+<main id="top">
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="hero">
+  <span class="hero-badge"><span class="dot"></span>AI-First · 原生 3D / CAD / 空间计算引擎</span>
+  <h1>写一段 <span class="grad">Three.js</span> 代码,<br>同时跑进<span class="grad">网页、安卓、苹果与 AR 眼镜</span></h1>
+  <p class="sub">Three-Live 是一个<b>设备端即时编译器 + 跨平台运行时</b>:把 AI 或开发者写的标准 Three.js 代码,在沙箱里安全执行,编译成通用 3D 格式,再由各平台<b>原生渲染器</b>画出来 —— 不用为每个平台重写一遍。</p>
+  <div class="hero-stats">
+    <div class="stat"><div class="num" data-count="1">0</div><div class="lbl">个 HTML 标签即可嵌入 3D</div></div>
+    <div class="stat"><div class="num" data-count="3">0</div><div class="lbl">大平台行为完全一致</div></div>
+    <div class="stat"><div class="num" data-count="111" data-suffix="KB">0</div><div class="lbl">Web 全功能包体积上限(gzip)</div></div>
+    <div class="stat"><div class="num" data-count="60" data-suffix="Hz">0</div><div class="lbl">原生物理与交互步进频率</div></div>
+  </div>
+
+  <div class="plain"><span class="tag">30 秒看懂</span>把它想象成一家<b>连锁餐厅</b>:Three.js 代码是<b>菜谱</b>,Rust 编译器是<b>万能翻译官</b>,把菜谱翻译成三家厨房(Web / 安卓 / 苹果)各自看得懂的标准工单(GLB / USDZ 文件);<b>沙箱</b>是试菜间,防止菜谱里夹带危险动作;每道菜还能贴<b>标签</b>(空间特质),比如"可以双手拿起来""会绕圈飞"。</div>
+
+  <div class="analogy">
+    <div class="step"><span class="ico">📝</span><h4>① 写菜谱</h4><p>开发者或 AI 写几十行 Three.js,描述形状、材质和互动。</p><span class="real">&lt;script type="text/three"&gt;</span></div>
+    <div class="step"><span class="ico">🛡️</span><h4>② 试菜间检查</h4><p>代码在隔离沙箱里执行,限时 3 秒、限量用料,危险 URL 一律拦下。</p><span class="real">Worker / Boa VM</span></div>
+    <div class="step"><span class="ico">🌐</span><h4>③ 翻译官打包</h4><p>Rust 编译器把场景导出成通用 3D 文件:GLB 给安卓和网页,USDZ 给苹果。</p><span class="real">compiler/ (Rust)</span></div>
+    <div class="step"><span class="ico">🍽️</span><h4>④ 三家厨房上菜</h4><p>Filament、RealityKit、WebGL2 各自原生渲染,画面与互动三端一致。</p><span class="real">Android · iOS · Web</span></div>
+  </div>
+  <div class="scroll-hint"><span class="chev">⌄</span>向下滚动,逐层拆开这套系统(所有图都可点击交互)</div>
+</section>
+
+<!-- ============ 架构图 ============ -->
+<section id="arch">
+  <span class="kicker">Architecture · 全景架构</span>
+  <h2>五层架构:<span class="hl">从一行代码到三端画面</span></h2>
+  <p class="lede">整个系统自上而下分五层。<b>点击任意模块</b>查看它的通俗解释、技术要点和源码位置。</p>
+  <div class="arch-wrap" id="archWrap"></div>
+  <p class="arch-tip">提示:点击模块打开详情抽屉,按 <kbd>Esc</kbd> 关闭</p>
+</section>
+
+<!-- ============ Bundle ============ -->
+<section id="bundles">
+  <span class="kicker">Bundles · 组件选型</span>
+  <h2>像点菜一样<span class="hl">按需选装</span>,每 KB 都有预算</h2>
+  <p class="lede">网页端拆成两条产品线:<code>&lt;three-live&gt;</code> 负责 3D 展示与创作,<code>&lt;xr-live&gt;</code> 负责 AR/VR 空间体验。基础包 + 可选附加包,用多少装多少,体积上限写进构建脚本强制检查。</p>
+  <div class="tabs" id="bundleTabs">
+    <button class="on" data-b="three">three-live(3D 展示)</button>
+    <button data-b="xr">xr-live(空间计算)</button>
+  </div>
+  <div class="bundle-list" id="bundleList"></div>
+  <p class="bundle-note">条形长度按同产品线最大包体积等比绘制;数字为 gzip 后的强制体积预算,构建时超标即失败。</p>
+</section>
+
+<!-- ============ 时序图 ============ -->
+<section id="sequence">
+  <span class="kicker">Sequence · 运行时序</span>
+  <h2>按下播放键,<span class="hl">看一条消息如何走完旅程</span></h2>
+  <p class="lede">两条真实链路:网页里一个 <code>&lt;three-live&gt;</code> 标签如何变成画面;AI 写的代码如何编译进手机原生渲染。每一步都配有通俗解说。</p>
+  <div class="tabs" id="seqTabs">
+    <button class="on" data-s="web">网页渲染时序</button>
+    <button data-s="native">AI → 手机原生时序</button>
+  </div>
+  <div class="seq-controls">
+    <button class="primary" id="seqPlay">▶ 播放</button>
+    <button id="seqPrev">⟨ 上一步</button>
+    <button id="seqNext">下一步 ⟩</button>
+    <button id="seqReset">↺ 重置</button>
+    <select id="seqSpeed" title="播放速度">
+      <option value="2600">慢速</option>
+      <option value="1600" selected>正常</option>
+      <option value="850">快速</option>
+    </select>
+    <span class="seq-progress" id="seqProgress"></span>
+  </div>
+  <div class="seq-stage"><svg id="seqSvg" viewBox="0 0 1000 640" role="img" aria-label="时序图"></svg></div>
+  <p class="seq-swipe">↔ 左右滑动查看完整时序图</p>
+  <div class="seq-dots" id="seqDots"></div>
+  <div class="seq-caption"><div class="st"><span class="n" id="capN"></span><span id="capT"></span></div><div class="sd" id="capD"></div></div>
+</section>
+
+<!-- ============ 编译流水线 ============ -->
+<section id="pipeline">
+  <span class="kicker">Compiler · 跨平台编译流水线</span>
+  <h2>一份代码,<span class="hl">三端一致</span>的秘密</h2>
+  <p class="lede">核心是一个用 <b>Rust</b> 写的设备端编译器,内部嵌了一个隔离的 JavaScript 虚拟机(Boa)。它不依赖浏览器、不依赖 GPU,在手机上、命令行里都能跑。</p>
+  <div class="pipe">
+    <div class="pstage"><div class="pic">📝</div><h4>Three.js 源码</h4><p>标准 Three.js 网格、材质、CSG 布尔运算、挤出文字、实例化。</p><span class="chip">scene.js</span></div>
+    <div class="pstage"><div class="pic">🔒</div><h4>Boa 沙箱执行</h4><p>隔离 JS 虚拟机,指令数 +  wall-clock 双重看门狗,超时就掐断。</p><span class="chip">compiler/src/engine.rs</span></div>
+    <div class="pstage"><div class="pic">🧬</div><h4>特质规范化</h4><p>userData.xr 按统一 Schema 清洗、钳制,保证三端读到的字段一模一样。</p><span class="chip">xr-trait-schema.ts</span></div>
+    <div class="pstage"><div class="pic">📦</div><h4>双格式导出</h4><p>GLB(含 GPU 实例化 / 材质变体 / 音频扩展)与 USDZ(PointInstancer / SpatialAudio)。</p><span class="chip">glb.rs · usdz.rs</span></div>
+    <div class="pstage"><div class="pic">🚀</div><h4>原生加载渲染</h4><p>安卓 JNI 零拷贝直入 Filament;苹果 RealityKit / Quick Look;CLI 无 GPU 出验证截图。</p><span class="chip">jni.rs · ffi.rs</span></div>
+  </div>
+
+  <div class="plain"><span class="tag">为什么这样设计</span>如果安卓、苹果、网页各写一套"读懂代码"的逻辑,三边迟早对不上。所以项目把<b>字段定义只写一份</b>(Trait Schema),三端都从它生成/对照,并用<b>自动化一致性测试</b>盯着 —— 改了任何一端,测试立刻报警。</div>
+
+  <div class="parity">
+    <div class="card src">
+      <div style="font-size:30px;margin-bottom:10px">🧬</div>
+      <div class="big">xr-trait-schema.ts<br>xr-sim-schema.ts</div>
+      <p style="font-size:12.5px;color:var(--muted);margin-top:10px">单一事实源(Single Source of Truth)<br>所有空间特质的字段、默认值、取值范围只在这里定义</p>
+    </div>
+    <div class="targets">
+      <div class="ptarget"><span class="pic">🌐</span><div><h4>Web 运行时</h4><p>xr-live/src/plugins/ — 15 个空间插件 + 6 个仿真插件</p></div><span class="ok">Parity ✓</span></div>
+      <div class="ptarget"><span class="pic">🤖</span><div><h4>Android(Kotlin)</h4><p>XRSpatialFeatures.kt + XRSimWorld.kt 等模块化控制器</p></div><span class="ok">Parity ✓</span></div>
+      <div class="ptarget"><span class="pic">🍎</span><div><h4>iOS / visionOS(Swift)</h4><p>XRSpatialRealityKitFeatures.swift + XRSimWorld.swift</p></div><span class="ok">Parity ✓</span></div>
+      <div class="ptarget" style="border-color:rgba(74,222,128,.35)"><span class="pic">🧪</span><div><h4>一致性守门员</h4><p>XRLiveSwiftSourceParityTest.kt — 任何一端偏离 Schema,测试立刻变红</p></div><span class="ok">强制绿 ✓</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 技术细节 ============ -->
+<section id="tech">
+  <span class="kicker">Deep Dive · 技术细节</span>
+  <h2>魔鬼在细节里:<span class="hl">安全、性能与超能力</span></h2>
+  <p class="lede">四块硬功夫支撑起"让 AI 随便写代码也敢直接跑"的底气。</p>
+  <div class="tech-grid">
+    <div class="card tcard reveal">
+      <h4><span class="ic">🛡️</span>强制沙箱 + 资源配额</h4>
+      <p>作者脚本永远不在主线程执行,只进 Worker 或opaque-origin iframe。每个场景都有硬上限,防止一段失控代码拖垮页面:</p>
+      <table class="quota-table">
+        <tr><td>网格数量</td><td>≤ 1,000</td></tr>
+        <tr><td>顶点 / 索引</td><td>≤ 10万 / 30万</td></tr>
+        <tr><td>纹理</td><td>≤ 16 张(2048²)</td></tr>
+        <tr><td>脚本体积 / 执行时间</td><td>≤ 1 MiB / 3 秒</td></tr>
+        <tr><td>粒子 / 发射器</td><td>≤ 2000 / 8 个</td></tr>
+      </table>
+    </div>
+    <div class="card tcard reveal">
+      <h4><span class="ic">⚡</span>GPU 实例化:一次画一千个</h4>
+      <p>一千个相同的无人机不是一个一个画,而是<b>一次 GPU 指令画完</b>(drawElementsInstanced)。同一份几何体只占一份显存,每个实例只存一个变换矩阵和颜色。</p>
+      <div class="mini">Web: EXT_mesh_gpu_instancing<br>Android: Filament Instancing<br>iOS: USDZ PointInstancer</div>
+    </div>
+    <div class="card tcard reveal">
+      <h4><span class="ic">🔗</span>安全 URL 与原型污染防护</h4>
+      <p>媒体地址必须走 <code>safeMediaUrl()</code>:只允许 https 或干净相对路径,拒绝 <code>..</code>、反斜杠、协议注入。锚点 ID 拒绝 <code>__proto__</code> / <code>constructor</code> 等原型污染关键字;多人房间只允许 wss 加密连接。</p>
+      <div class="mini">safeMediaUrl() · isAllowedRoomUrl() · safeAnchorId()</div>
+    </div>
+    <div class="card tcard reveal">
+      <h4><span class="ic">🎨</span>专业渲染管线</h4>
+      <p>WebGL2 PBR 物理材质、5 种色调映射(ACES / AgX / Neutral…)、HDR 泛光、轮廓描边、meshopt 网格压缩解码、材质变体切换、2 骨骼 / FABRIK 反向动力学(IK)——全部塞进 111KB 预算内。</p>
+      <div class="mini">bloom · outline · meshopt · variants · IKSolver</div>
+    </div>
+  </div>
+
+  <h3 style="font-size:19px;margin:26px 0 6px">🏷️ 空间特质浏览器 <span style="font-size:12.5px;color:var(--dim);font-weight:400">— 给 3D 物体贴一张"行为标签",点击左侧切换</span></h3>
+  <p class="lede" style="margin-bottom:14px">特质(Trait)是本项目最核心的发明之一:不写行为代码,只在物体上声明一个 <code>userData.xr</code> 字段,三端运行时自动实现对应行为。</p>
+  <div class="trait-box">
+    <div class="trait-list" id="traitList"></div>
+    <div class="trait-detail" id="traitDetail"></div>
+  </div>
+</section>
+
+<!-- ============ 设计思路 ============ -->
+<section id="design">
+  <span class="kicker">Philosophy · 设计思路</span>
+  <h2>六个决定,<span class="hl">塑造了整个项目</span></h2>
+  <p class="lede">每个架构选择背后都有一个明确的"为什么"。看懂这六条,就看懂了 Three-Live。</p>
+  <div class="design-grid">
+    <div class="card dcard reveal" data-n="01"><span class="ic">🤖</span><h4>AI 优先,而不是平台优先</h4><p class="why">大模型擅长写简洁的 Three.js,不擅长写几百行安卓着色器或苹果 AR 样板代码。与其让 AI 学三个平台,不如让平台学 AI 的语言。</p><div class="how"><b>落地:</b>标准 Three.js 即输入,编译器负责一切平台差异。</div></div>
+    <div class="card dcard reveal" data-n="02"><span class="ic">🏷️</span><h4>声明式:一个标签,一张标签</h4><p class="why">网页里放一个 <code>&lt;three-live&gt;</code> 就能显示 3D;物体上贴一个 <code>grab: '2-hand'</code> 就能被双手拿起。行为是"声明"出来的,不是"编程"出来的。</p><div class="how"><b>落地:</b>Custom Elements + userData.xr 特质 Schema。</div></div>
+    <div class="card dcard reveal" data-n="03"><span class="ic">🛡️</span><h4>安全是底线,不是选项</h4><p class="why">要敢直接运行 AI 生成的代码,就必须假设代码可能出错甚至恶意。沙箱、配额、URL 白名单、看门狗全部默认开启、不可绕过。</p><div class="how"><b>落地:</b>Worker/iframe 强制隔离,Boa 双重看门狗,原型污染防护。</div></div>
+    <div class="card dcard reveal" data-n="04"><span class="ic">🧬</span><h4>三端一致靠合约,不靠自觉</h4><p class="why">跨平台项目最大的坑是"网页能拿起来,安卓拿不起来"。字段定义只写一份,三端实现对照同一 Schema,一致性测试强制常绿。</p><div class="how"><b>落地:</b>Trait Schema 单一事实源 + Parity Rule + 自动化测试。</div></div>
+    <div class="card dcard reveal" data-n="05"><span class="ic">⚖️</span><h4>体积预算:每 KB 都要挣</h4><p class="why">网页 3D 组件如果动辄几 MB,没人愿意嵌入。项目给每个 bundle 定了 gzip 硬预算(30KB~207KB),构建脚本超标即失败,逼出模块化按需加载。</p><div class="how"><b>落地:</b>基础包 + 附加包分层,make web 自动校验预算。</div></div>
+    <div class="card dcard reveal" data-n="06"><span class="ic">🔄</span><h4>AI 写完必须能自己验收</h4><p class="why">AI 看不到浏览器画面,怎么知道写对了?给它一套无 GPU 的命令行工具:静态体检、四视角截图、60Hz 仿真,全部输出结构化 JSON,AI 可以自己看结果、自己改。</p><div class="how"><b>落地:</b>three-live-cli validate / render / sim + MCP 服务器。</div></div>
+  </div>
+</section>
+
+<!-- ============ AI 闭环 ============ -->
+<section id="loop">
+  <span class="kicker">Verification Loop · AI 验证闭环</span>
+  <h2>AI 的<span class="hl">"写 → 验 → 改"</span>循环,不需要人盯</h2>
+  <p class="lede">命令行工具 <code>three-live-cli</code> 还能作为 MCP 服务器接入 Claude Code、Cursor 等 AI 编程工具。点击圆环上的节点,看每一步在做什么。</p>
+  <div class="loop-wrap">
+    <div class="loop-svg-box"><svg id="loopSvg" viewBox="0 0 520 440" role="img" aria-label="AI 验证闭环图"></svg></div>
+    <div class="loop-info card" id="loopInfo"></div>
+  </div>
+  <div class="mcp-chips">
+    <span>three_live_validate</span><span>three_live_render</span><span>three_live_convert</span><span>three_live_sim</span>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="fw">
+    <div>Three-Live 项目全图解 · 依据仓库 <span class="mono">AGENTS.md / README.md / 源码结构</span> 绘制 · Apache-2.0 · 非 Google 官方支持产品</div>
+    <div><a href="#top">回到顶部 ↑</a></div>
+  </div>
+</footer>
+
+<!-- 详情抽屉 -->
+<div class="drawer-scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="dhead"><span class="dic" id="dIc"></span><div><h3 id="dTitle"></h3><div class="sub" id="dFile"></div></div><button class="dclose" id="dClose" aria-label="关闭">✕</button></div>
+  <div class="dbody" id="dBody"></div>
+</aside>
+
+<script>
+"use strict";
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+/* ================= 数据 ================= */
+const ARCH = [
+ {layer:"创作入口", hint:"开发者 / AI 从这里进入", nodes:[
+  {id:"tag",ic:"🏷️",c:"#38bdf8",t:"HTML 自定义标签",d:"<three-live> 显示 3D,<xr-live> 进入 AR/VR",f:"three-live-element.ts · xr-live-element.ts",
+   plain:"就像网页里插一张图片用 <img>,这里插一个 3D 场景只用一个标签。写 src 指向模型文件,或者内嵌一段 Three.js 脚本,浏览器遇到标签就自动把画面画出来。",
+   tech:["Custom Element,零框架依赖,任何网页可嵌入","src 加载 .glb/.usdz;内联脚本需显式 allow-client-scripts","<xr-live> 支持 6DoF WebXR + <div slot=\"spatial\"> 空间 UI","一键 AR 交接:安卓 SceneCore / iOS Quick Look"]},
+  {id:"ai",ic:"🤖",c:"#e879f9",t:"AI 生成 Three.js",d:"大模型直接写场景脚本,无需学原生平台",f:"skills/three-live-authoring/SKILL.md",
+   plain:"AI 最擅长写简短的 Three.js 代码。项目专门给 AI 准备了写作指南(Skill 文档),AI 照着写,写完还能用命令行工具自己验收。",
+   tech:["标准 THREE.Mesh / CSG / TextGeometry / InstancedMesh","userData.xr 特质 + KHR_interactivity 交互图","docs/llm-guide.md + llms.txt 供模型检索","禁止创建渲染器/渲染循环——那是运行时的职责"]},
+  {id:"cli",ic:"⌨️",c:"#fbbf24",t:"three-live-cli / MCP",d:"无浏览器、无 GPU 的编译与验证工具",f:"compiler/src/main.rs · mcp.rs",
+   plain:"给 AI 用的'眼睛和体检仪':不开浏览器就能检查代码、渲染四视角截图、模拟 5 秒钟的物理互动,结果以 JSON 返回,AI 自己判断对错。",
+   tech:["validate:静态 + 空间 lint(TL100-TL402 诊断码)","render:2x2 正交联系表 / 4 帧动画胶片 / GIF","sim:60Hz 场景仿真,可注入 select 等动作","mcp:JSON-RPC 2.0 stdio 服务器,4 个工具"]},
+ ]},
+ {layer:"Web 运行时", hint:"浏览器里的两条产品线", nodes:[
+  {id:"tl",ic:"🧊",c:"#38bdf8",t:"<three-live> 组件",d:"WebGL2 PBR 渲染 + 程序化场景 + AR 交接",f:"three-live/src/three-view.ts",
+   plain:"网页里的 3D 放映机:接收沙箱传来的场景清单,准备 GPU 资源,每一帧把画面画到屏幕上,还负责鼠标点击、拖拽旋转这些互动。",
+   tech:["WebGL2 + 5 种色调映射(neutral/aces/agx/reinhard/none)","meshopt 压缩解码、材质变体、bloom/outline 后处理","KHR_interactivity 行为图编译执行","bundle 分层:viewer 30KB → full 111KB(gzip 预算)"]},
+  {id:"xl",ic:"🥽",c:"#6366f1",t:"<xr-live> 组件",d:"6DoF WebXR + 桌面模拟 + 空间 UI",f:"xr-live/src/xr-live-element.ts",
+   plain:"AR/VR 模式入口:戴上头显就是真实空间计算,没有头显也能在桌面上用键鼠模拟走动、抓取。网页里的浮动面板可以直接'钉'在 3D 空间中。",
+   tech:["6DoF WebXR 会话 + 桌面模拟器回退","spatial slot:HTML 面板进入 3D 空间","手势 / 控制器 / 注视输入统一抽象","与安卓 SceneCore、苹果 RealityKit 特质对齐"]},
+  {id:"plug",ic:"🧩",c:"#4ade80",t:"插件体系",d:"15 个空间插件 + 6 个仿真插件,按需加载",f:"xr-live/src/plugins/ · sim/",
+   plain:"像手机装 App:抓取、测量、涂鸦、多人同房间、高斯泼溅、角色控制、巡逻 AI、刚体物理……每个能力都是独立插件,不用的不占体积。",
+   tech:["空间插件:head-follow / magnetic-snap / gaze-dwell / exploded-view / shared-room(WebRTC 语音)/ spatial-audio / splat-loader(SH 1-3 阶)等 15 个","仿真插件:character-controller / steering-agents / rigid-body / hit-zones / objectives / synth-audio","plugin.ts 统一钩子,studio/sensors/spatial/sim 分包"]},
+ ]},
+ {layer:"安全与合约层", hint:"不可绕过的底线", nodes:[
+  {id:"sandbox",ic:"🛡️",c:"#f87171",t:"Worker / iframe 沙箱",d:"作者脚本永不进入主线程",f:"three-live-sandbox.html · messages.ts",
+   plain:"把外来代码关进'玻璃房间'执行:它摸不到网页 Cookie、DOM 和其他脚本,只能通过受控的消息通道递出一份场景清单。房间超时 3 秒自动断电。",
+   tech:["sandbox=\"worker\" 或 opaque-origin iframe + Worker","禁止主线程 eval / new Function","3000ms 执行超时 + 1MiB 脚本上限","结构化消息协议,场景数据序列化回传"]},
+  {id:"quota",ic:"📏",c:"#fbbf24",t:"配额与 URL 白名单",d:"资源硬上限 + 原型污染防护",f:"constants.ts · xr-trait-schema.ts",
+   plain:"给每个场景发'限量粮票':最多 1000 个物体、10 万个顶点。外部地址只许 https,路径里带 .. 或危险关键字一律拒绝——防止代码把浏览器吃穷或偷偷访问不该访问的地方。",
+   tech:["MAX_PARTICLES=2000 / MAX_EMITTERS=8 / MAX_SPLATS=100万","safeMediaUrl / isAllowedLiveUrl / isAllowedRoomUrl","safeAnchorId 拒绝 __proto__ / constructor / prototype","WebMCP 隐私:头显位置量化 0.1m,深度网格需显式开启"]},
+  {id:"schema",ic:"🧬",c:"#38bdf8",t:"Trait Schema 单一事实源",d:"三端特质定义只写一份",f:"xr-trait-schema.ts · xr-sim-schema.ts",
+   plain:"三端共用的'词典':grab 是什么意思、取值有哪些、默认多少,只在这里定义。安卓和苹果的实现必须对照这本词典,词典改了,一致性测试立刻检查两边。",
+   tech:["normalizeXRTraits() / normalizeXRSimTraits() 统一清洗钳制","glTF: nodes[i].extras.xr + ANDROID_xr_scenecore","USDZ: customData = {dictionary xr = {...}}","Parity Rule:改 Schema 必须同步 Web/Android/iOS"]},
+ ]},
+ {layer:"编译核心(Rust)", hint:"设备端 JIT,无浏览器无 GPU 也能跑", nodes:[
+  {id:"rust",ic:"⚙️",c:"#4ade80",t:"Rust + Boa 虚拟机",d:"隔离 JS 执行,双重看门狗",f:"compiler/src/engine.rs · lib.rs",
+   plain:"一个装在芯片旁的'翻译工作室':Rust 保证工作室本身坚固,里面嵌的 Boa 虚拟机负责读懂 JavaScript。看门狗盯着指令数和真实时间,耍花招立刻终止。",
+   tech:["内嵌 three-author-engine.min.js 到 Boa 上下文","opcode + wall-clock 双看门狗","C FFI(three_live.h)供任意语言调用","JNI 零拷贝直达安卓;Swift 直调供苹果"]},
+  {id:"glb",ic:"📦",c:"#60a5fa",t:"GLB 导出",d:"安卓 / Web 通用 3D 格式",f:"compiler/src/glb.rs · geometry.rs",
+   plain:"把场景打包成'安卓和网页都认识的集装箱':几何体、材质、动画、特质标签全部装箱,还贴上 GPU 实例化、材质变体、空间音频的标准扩展标签。",
+   tech:["EXT_mesh_gpu_instancing / KHR_materials_variants","KHR_audio_emitter / ANDROID_xr_scenecore","extras.xr 保留原始特质供运行时读取","零拷贝 ByteBuffer 直入 Filament assetLoader"]},
+  {id:"usdz",ic:"🍎",c:"#e879f9",t:"USDZ 导出",d:"苹果 RealityKit / Quick Look 格式",f:"compiler/src/usdz.rs",
+   plain:"同一场景的'苹果版集装箱':皮克斯 USD 格式打 zip, iPhone 上点开就能 AR 预览。实例化对应 PointInstancer,材质变体对应 VariantSets,音频对应 SpatialAudio。",
+   tech:["PointInstancer / VariantSets / SpatialAudio 映射","customData 字典携带 xr 特质","Quick Look 一键 AR,iOS 系统级支持","与 GLB 出自同一场景图,保证内容一致"]},
+  {id:"headless",ic:"📸",c:"#fbbf24",t:"无 GPU 渲染验证",d:"CPU 软件光栅化出验证截图",f:"compiler/src/render.rs · spatial_lint.rs",
+   plain:"翻译工作室自带'拍立得':不靠显卡,纯 CPU 画出四个角度的照片,标上尺寸网格。AI 拿到照片就能判断物体有没有摆歪、飞出镜头、悬在半空。",
+   tech:["2x2 正交 + 相机联系表,1m 网格与 AABB 标注","4 帧胶片 / GIF89a 动画,可注入 select 触发","spatial_lint:视锥 / 接地 / 光照结构化诊断","sim.rs:60Hz 交互与物理仿真"]},
+ ]},
+ {layer:"原生平台", hint:"最终画面在这里诞生", nodes:[
+  {id:"android",ic:"🤖",c:"#4ade80",t:"Android:Filament + SceneCore",d:"Google 原生渲染器 + Jetpack XR",f:"mobile/android/ · android-filament/",
+   plain:"安卓厨房:Filament 是 Google 的电影级渲染器,SceneCore 是安卓 XR 的空间引擎。编译好的 GLB 不经复制直接喂进去,每 1/60 秒推进一步物理和互动。",
+   tech:["FilamentHelper.loadModelZeroCopy(JNI ByteBuffer)","XRLiveRuntimeSession.step(1/60):交互图 + 刚体物理","XRLiveSceneCoreHelper.attachTraitsFromGlb 空间特质","模块化控制器:测量 / 磁吸 / 注视 / 爆炸图 / IK / LOD"]},
+  {id:"ios",ic:"🍏",c:"#e879f9",t:"iOS / visionOS:RealityKit",d:"ARView / RealityView + Quick Look",f:"mobile/ios/Sources/ThreeLiveCompiler/",
+   plain:"苹果厨房:RealityKit 负责 iPhone、iPad 和 Vision Pro 上的渲染。同一份 Three.js 编译出的实体直接挂进 AR 视图,特质、物理、交互与安卓完全同构。",
+   tech:["ThreeCompiler.compileToGLB(script:) Swift 直调","XRLiveRealityKitSession 绑定 SceneEvents.Update","XRSimWorld.swift + 6 个仿真控制器与 Web 对齐","XRLiveSwiftSourceParityTest.kt 强制三端一致"]},
+  {id:"web",ic:"🌐",c:"#38bdf8",t:"Web:WebGL2 / WebXR",d:"浏览器原生渲染,与移动端同特质",f:"three-live/src/gl-program.ts · three-xr.ts",
+   plain:"网页厨房:浏览器自带的 WebGL2 画 3D,WebXR 进头显。因为特质词典和编译器是同一份,网页里能双手抓起的物体,到了 Vision Pro 里也一样能抓。",
+   tech:["WebGL2 PBR + 实例化 drawElementsInstanced","WebXR 6DoF + 深度遮挡(sensors 包)","桌面模拟器:无头显也能体验空间交互","与安卓 / iOS 共享 Trait Schema 语义"]},
+ ]},
+];
+
+const BUNDLES = {
+ three:[
+  {n:"three-live-viewer.min.js",s:30,t:"base",d:"纯模型查看器:.glb/.usdz + 一键 AR,无脚本"},
+  {n:"three-live.min.js",s:70,t:"base",d:"程序化脚本 + 实例化 + KHR_interactivity + AR"},
+  {n:"+ studio.min.js",s:29,t:"addon",d:"PBR Next / HDRI / bloom / outline / 材质变体 / meshopt / LOD"},
+  {n:"+ cad.min.js",s:10,t:"addon",d:"2D Shape 挤出 / CSG 布尔运算 / 3D 文字"},
+  {n:"+ animation.min.js",s:11,t:"addon",d:"64 关节蒙皮 / 形变目标 / 关键帧交叉淡入 / IK"},
+  {n:"three-live-full.min.js",s:111,t:"full",d:"以上全部:viewer + studio + CAD + animation + IK"},
+ ],
+ xr:[
+  {n:"xr-live.min.js",s:82,t:"base",d:"6DoF WebXR + grab/scale/billboard/anchor + 空间 UI"},
+  {n:"+ sensors.min.js",s:10,t:"addon",d:"硬件深度遮挡 / 高度场物理 / 25 关节手部 / 模拟器 / WebMCP"},
+  {n:"+ spatial.min.js",s:63,t:"addon",d:"全部 15 个空间插件:多人房间 / 泼溅 / 音频 / AI 等"},
+  {n:"+ sim.min.js",s:26,t:"addon",d:"6 个仿真插件:角色 / 巡逻 AI / 刚体 / 命中区 / 目标 / 音频"},
+  {n:"xr-live-full.min.js",s:207,t:"full",d:"以上全部:空间计算 + 深度物理 + 手部 + 21 个插件"},
+ ]};
+
+const SEQ = {
+ web:{title:"网页渲染时序",actors:["网页 HTML","<three-live> 元素","Worker 沙箱","ThreeView 渲染器","GPU / 屏幕"],
+  steps:[
+   {a:0,b:1,l:"解析到 <three-live> 标签",d:"浏览器读网页时遇到这个自定义标签,把它交给组件代码处理——就像遇到 <video> 会交给播放器一样。"},
+   {a:1,b:1,l:"按需加载对应 bundle",d:"根据用到的功能挑选最小的包:只看模型用 30KB 的 viewer,要写脚本用 70KB 的核心包,绝不多加载一字节。"},
+   {a:1,b:2,l:"创建隔离沙箱,发送作者脚本",d:"组件开一间'玻璃房间'(Worker),把脚本递进去。前提是标签上显式写了 allow-client-scripts,否则拒收——安全默认关闭。"},
+   {a:2,b:2,l:"注入 THREE 与 scene,执行脚本",d:"沙箱里预先放好 THREE 工具库和空场景,脚本只管往 scene 里添物体。看门狗计时 3 秒,超时立刻终止。"},
+   {a:2,b:2,l:"配额与安全检查",d:"数一数:物体超 1000 个?顶点超 10 万?URL 带危险字符?任何一条超标,整个场景拒收并报错。"},
+   {a:2,b:1,l:"回传序列化场景清单",d:"沙箱把场景'拍扁'成结构化数据(几何、材质、userData.xr 特质)递回主线程。玻璃房间随即关闭。"},
+   {a:1,b:3,l:"构建 GPU 缓冲与材质",d:"ThreeView 拿到清单,把顶点送进显存、编译着色器、准备实例化与后处理(bloom/outline),搭好渲染流水线。"},
+   {a:3,b:4,l:"每帧绘制(requestAnimationFrame)",d:"渲染循环每 1/60 秒画一帧:更新动画、物理、交互状态,然后提交 GPU 绘制,画面出现在屏幕上。"},
+   {a:3,b:3,l:"用户点击 → 命中检测 → 交互图",d:"用户点了水晶?渲染器做射线命中检测,触发物体内声明的 KHR_interactivity 行为:旋转 45°、循环变色,带缓动动画。"},
+   {a:3,b:4,l:"绘制更新后的画面",d:"交互结果立刻反映到下一帧。整个过程没有刷新页面,没有新建渲染器——同一个循环持续运行。"},
+  ]},
+ native:{title:"AI → 手机原生时序",actors:["AI / 开发者","CLI / 移动 SDK","Rust + Boa 虚拟机","GLB / USDZ 文件","原生渲染器"],
+  steps:[
+   {a:0,b:1,l:"提交 Three.js 场景代码",d:"AI 写完几十行 Three.js,交给命令行工具或手机 App 内嵌的 SDK。同一份代码,不需要任何平台改写。"},
+   {a:1,b:2,l:"调用设备端编译器(C FFI / JNI)",d:"SDK 通过 C 接口或安卓 JNI 把代码字符串递进 Rust 编译器。全程在设备本地,不上传云端。"},
+   {a:2,b:2,l:"Boa 隔离执行 + 双重看门狗",d:"Rust 内嵌的 JS 虚拟机执行脚本,指令数和真实时间双重监控。AI 写出的死循环会被立刻掐断,不会卡死 App。"},
+   {a:2,b:2,l:"规范化 userData.xr 特质",d:"按三端共用的 Trait Schema 清洗每个字段:取值钳制到合法范围、补默认值。保证安卓和苹果读到完全相同的语义。"},
+   {a:2,b:3,l:"导出 GLB(安卓/Web)或 USDZ(苹果)",d:"场景图序列化成标准 3D 文件,携带 GPU 实例化、材质变体、空间音频扩展和 xr 特质字典。"},
+   {a:3,b:4,l:"零拷贝加载进 Filament / RealityKit",d:"安卓:ByteBuffer 不经复制直接喂给 Filament。苹果:实体挂进 ARView。特质由各自的运行时控制器接管。"},
+   {a:4,b:4,l:"RuntimeSession.step(1/60) 每帧步进",d:"原生会话以 60Hz 推进:刚体物理、KHR_interactivity 交互图、抓取/锚定/巡逻等空间特质,与网页行为一致。"},
+   {a:1,b:0,l:"CLI render 回传四视角截图 + JSON 诊断",d:"AI 用无 GPU 渲染拿到四角度联系表和空间 lint 报告,自己检查物体是否摆正、在镜头内,不满意就改了再验——闭环完成。"},
+  ]},
+};
+
+const TRAITS = [
+ {n:"双手抓取",en:"grab",ana:"给物体贴上「可以拿起来」的标签。在 AR 里伸双手就能把它捧起来移动,松手放下。",code:"mesh.userData.xr = {\n  grab: '2-hand',        // '1-hand' | '2-hand' | true\n  scale: { min: 0.25, max: 3.0 }\n};",use:"文物展品的把玩、虚拟商品查看、培训设备拆装"},
+ {n:"公告牌朝向",en:"billboard",ana:"像导游举的牌子:不管观众从哪个方向看,标签永远正对着你,不会看到侧面一条线。",code:"mesh.userData.xr = {\n  billboard: 'capsule'   // 绕竖轴始终面向相机\n};",use:"3D 场景里的名称标签、说明牌、血条"},
+ {n:"空间锚定",en:"anchor",ana:"把虚拟物体「钉」在真实桌面上。人走开再回来,它还在那个位置,甚至下次打开 App 依然在。",code:"mesh.userData.xr = {\n  anchor: { target: 'table', id: 'turbine-1', persist: true }\n};",use:"AR 家具摆放、持久化的空间笔记、展厅布置"},
+ {n:"刚体物理",en:"physics",ana:"给物体真实的「重量和弹性」:会下落、会弹跳、会碰撞,而不是穿模飘在空中。",code:"mesh.userData.xr = {\n  physics: { body: 'dynamic', shape: 'box',\n    mass: 1.5, restitution: 0.5, friction: 0.6 }\n};",use:"掉落的水果、可推倒的积木、抛接球"},
+ {n:"环绕飞行",en:"orbit",ana:"让物体像卫星一样绕着某个中心点转圈,可以设定半径、速度和高度,还能让它始终面朝中心。",code:"mesh.userData.xr = {\n  orbit: { target: [0,1,-1], radius: 0.4,\n    speed: 0.8, height: 0.1, faceCenter: true }\n};",use:"环绕展品的无人机、行星模型、装饰粒子"},
+ {n:"粒子特效",en:"particles",ana:"在物体周围撒出一团会动的小亮点——火花、雪花、萤火虫,选个预设就有,数量有安全上限。",code:"mesh.userData.xr = {\n  particles: { preset: 'sparks', count: 300,\n    area: [2,2,2], speed: 1.0 }\n};",use:"焊接火花、魔法效果、氛围营造"},
+ {n:"空间音频",en:"audioEmitter",ana:"声音从物体的位置发出来:走近变大,绕到背后变闷,像真实世界里一样有方位感。",code:"mesh.userData.xr = {\n  audioEmitter: { preset: 'hum', volume: 0.7,\n    loop: true, distanceModel: 'inverse',\n    refDistance: 1.0, maxDistance: 15.0 }\n};",use:"机器轰鸣导览、虚拟展厅讲解、环境氛围"},
+ {n:"角色控制",en:"character",ana:"把一个模型变成「可操控的角色」:能走能跳,有身高和碰撞半径,第一或第三人称任选。",code:"mesh.userData.xr = {\n  character: { mode: 'third-person', speed: 4.5,\n    jumpVelocity: 5.5, radius: 0.35, height: 1.6 }\n};",use:"虚拟巡检、培训演练、空间游戏"},
+ {n:"巡逻 AI",en:"agent",ana:"给 NPC 一张巡逻路线图,它自己按点走;发现目标还可以切换成追逐模式。",code:"mesh.userData.xr = {\n  agent: { behavior: 'patrol', speed: 2.2,\n    waypoints: [[-2,0,-2],[2,0,-2]],\n    alertBehavior: 'chase' }\n};",use:"安保演练、导览机器人、游戏敌人"},
+ {n:"任务目标",en:"objective",ana:"给场景装上「任务清单」:到达某处得 50 分、按顺序完成步骤,全部达成自动判定通关。",code:"mesh.userData.xr = {\n  objective: { id: 'step-1', label: '到达检查点',\n    type: 'reach', points: 50, order: 1 }\n};",use:"操作流程培训、寻宝活动、教学关卡"},
+ {n:"爆炸拆解",en:"explode",ana:"一键把装配体「炸开」:每个零件沿指定方向散开,还能画引导线,看清内部结构。",code:"mesh.userData.xr = {\n  explode: { direction: [0,1,0], distance: 0.35,\n    layer: 2, leaderLine: true }\n};",use:"发动机教学、产品内部展示、维修手册"},
+ {n:"反向动力学",en:"ik",ana:"只告诉机械臂「手要到这里」,肩膀和手肘的角度自动算出来——像提线木偶,拉一个点全身跟着动。",code:"mesh.userData.xr = {\n  ik: { root: 'Shoulder', mid: 'Forearm',\n    effector: 'WristEffector',\n    target: 'GripperTarget', pole: 'ElbowPole' }\n};",use:"机械臂抓取、角色脚贴地面、伸手触物"},
+ {n:"距离分级",en:"lod",ana:"离得远就用「简版模型」,走近自动换精细版。就像地图缩放:远看是色块,近看有街道。",code:"mesh.userData.xr = {\n  lod: { distances: [0,5,12],\n    ratios: [1.0,0.4,0.15],\n    cullDistance: 30, hysteresis: 0.05 }\n};",use:"大场景城市、成百上千物体的性能优化"},
+ {n:"注视选中",en:"gaze",ana:"用眼睛「点按钮」:盯着物体看 1.2 秒就自动选中,适合双手不方便或没有控制器的场景。",code:"mesh.userData.xr = {\n  gaze: { dwellMs: 1200, action: 'select',\n    repeat: false }\n};",use:"头显无障碍交互、免提操作、展项自动讲解"},
+];
+
+const LOOP = [
+ {t:"AI 写场景",ic:"✍️",c:"#38bdf8",d:"AI 依据 llm-guide / Skill 文档写出 Three.js 脚本:几何、材质、特质、交互图。写作规则(不建渲染器、用 userData.xr)让产物天然可编译。",cmd:"# AI 产出\nscene.js  (≤ 1 MiB)"},
+ {t:"静态体检 validate",ic:"🩺",c:"#4ade80",d:"不开浏览器做全面检查:语法、配额、危险 URL(TL100-TL402 诊断码),外加空间 lint——物体飞出镜头?悬空没接地?灯光缺失?全部输出 JSON。",cmd:"three-live-cli validate scene.js --json"},
+ {t:"无 GPU 拍照 render",ic:"📸",c:"#fbbf24",d:"CPU 软件光栅化画出 2x2 四视角联系表,带 1 米网格和包围盒标注;还能出 4 帧动画胶片或 GIF,并注入点击事件验证交互前后变化。AI 直接『看图说话』。",cmd:"three-live-cli render scene.js -o preview.png \\\n  --view=quad --grid --annotations"},
+ {t:"60Hz 仿真 sim",ic:"⚙️",c:"#e879f9",d:"以每秒 60 步推进整个场景:物理下落、交互图触发、特质行为。可在指定时刻注入 select 等动作,验证『点了水晶之后到底发生了什么』。",cmd:"three-live-cli sim scene.js --duration=5.0 \\\n  --actions='[{\"at\":0.5,\"type\":\"select\",\n    \"target\":\"crystal\"}]' --json"},
+ {t:"修复或发布",ic:"🚀",c:"#60a5fa",d:"诊断不满意 → AI 自己改代码回到第 1 步;满意 → convert 导出 GLB/USDZ,直接进安卓 Filament、苹果 RealityKit 或网页组件。全程无需人工盯屏。",cmd:"three-live-cli convert scene.js -o model.usdz"},
+];
+
+/* ================= 导航 & 滚动 ================= */
+const navA=[...document.querySelectorAll('#navLinks a')];
+const secIds=navA.map(a=>a.getAttribute('href').slice(1));
+const spy=new IntersectionObserver(es=>{
+  es.forEach(e=>{if(e.isIntersecting){
+    navA.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+e.target.id));
+  }});
+},{rootMargin:'-40% 0px -55% 0px'});
+secIds.forEach(id=>{const el=document.getElementById(id);if(el)spy.observe(el)});
+const rev=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');rev.unobserve(e.target)}}),{threshold:.12});
+document.querySelectorAll('.reveal').forEach(el=>rev.observe(el));
+
+/* 数字滚动 */
+const cnt=new IntersectionObserver(es=>es.forEach(e=>{
+  if(!e.isIntersecting)return;cnt.unobserve(e.target);
+  const el=e.target,end=+el.dataset.count,suf=el.dataset.suffix||'',t0=performance.now();
+  (function tick(t){const p=Math.min(1,(t-t0)/1100),v=Math.round(end*(1-Math.pow(1-p,3)));
+   el.textContent=v+suf;if(p<1)requestAnimationFrame(tick)})(t0);
+}),{threshold:.5});
+document.querySelectorAll('[data-count]').forEach(el=>cnt.observe(el));
+
+/* ================= 架构图 ================= */
+const archWrap=document.getElementById('archWrap');
+const flowSVG='<svg width="30" height="26" viewBox="0 0 30 26"><path class="flowline" d="M15 1v18" stroke="#38bdf8" stroke-width="2" fill="none"/><path d="M8 15l7 8 7-8" fill="none" stroke="#38bdf8" stroke-width="2"/></svg>';
+ARCH.forEach((L,i)=>{
+  const layer=document.createElement('div');layer.className='arch-layer reveal';
+  layer.innerHTML=`<div class="layer-head"><span class="no">L${i+1}</span><h3>${L.layer}</h3><span class="hint">${L.hint}</span></div>`;
+  const grid=document.createElement('div');grid.className='arch-nodes';
+  L.nodes.forEach(n=>{
+    const b=document.createElement('button');b.className='anode';b.style.setProperty('--nc',n.c);
+    b.innerHTML=`<span class="t"><span class="ic">${n.ic}</span>${esc(n.t)}</span><span class="d">${esc(n.d)}</span><span class="f">${esc(n.f)}</span>`;
+    b.addEventListener('click',()=>openDrawer(n));
+    grid.appendChild(b);
+  });
+  layer.appendChild(grid);archWrap.appendChild(layer);
+  if(i<ARCH.length-1){const f=document.createElement('div');f.className='arch-flow';f.innerHTML=flowSVG;archWrap.appendChild(f)}
+  rev.observe(layer);
+});
+
+/* 抽屉 */
+const drawer=document.getElementById('drawer'),scrim=document.getElementById('scrim');
+function openDrawer(n){
+  document.getElementById('dIc').textContent=n.ic;
+  document.getElementById('dTitle').textContent=n.t;
+  document.getElementById('dFile').textContent=n.f;
+  document.getElementById('dBody').innerHTML=
+    `<div class="plain"><span class="tag">通俗理解</span>${esc(n.plain)}</div><h5>技术要点</h5><ul>${n.tech.map(t=>`<li>${esc(t)}</li>`).join('')}</ul>`;
+  drawer.classList.add('open');scrim.classList.add('open');drawer.setAttribute('aria-hidden','false');
+}
+function closeDrawer(){drawer.classList.remove('open');scrim.classList.remove('open');drawer.setAttribute('aria-hidden','true')}
+document.getElementById('dClose').addEventListener('click',closeDrawer);
+scrim.addEventListener('click',closeDrawer);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
+
+/* ================= Bundles ================= */
+const bundleList=document.getElementById('bundleList');
+function renderBundles(key){
+  const data=BUNDLES[key],max=Math.max(...data.map(b=>b.s));
+  const colors={base:'linear-gradient(90deg,#0ea5e9,#38bdf8)',addon:'linear-gradient(90deg,#d97706,#fbbf24)',full:'linear-gradient(90deg,#6366f1,#e879f9)'};
+  bundleList.innerHTML=data.map(b=>`
+    <div class="brow ${b.t}">
+      <div><span class="bname">${b.n}</span><span class="bdesc">${b.d}</span></div>
+      <div class="bbar"><i data-w="${(b.s/max*100).toFixed(1)}" style="background:${colors[b.t]}"></i></div>
+      <div class="bsize">&lt; ${b.s} KB</div>
+    </div>`).join('');
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    bundleList.querySelectorAll('.bbar i').forEach(i=>i.style.width=i.dataset.w+'%');
+  }));
+}
+document.querySelectorAll('#bundleTabs button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#bundleTabs button').forEach(x=>x.classList.toggle('on',x===b));
+  renderBundles(b.dataset.b);
+}));
+renderBundles('three');
+const bundleObs=new IntersectionObserver(es=>{if(es[0].isIntersecting){renderBundles(document.querySelector('#bundleTabs .on').dataset.b);bundleObs.disconnect()}},{threshold:.2});
+bundleObs.observe(document.getElementById('bundles'));
+
+/* ================= 时序图 ================= */
+const seqSvg=document.getElementById('seqSvg');
+let seqKey='web',seqStep=-1,seqTimer=null;
+const SVGNS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent){const e=document.createElementNS(SVGNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+function txt(parent,x,y,s,attrs){const t=el('text',Object.assign({x,y,'font-size':12.5,fill:'#e6ecfb','font-family':'PingFang SC,Microsoft YaHei,sans-serif'},attrs),parent);t.textContent=s;return t}
+
+function buildSeq(){
+  const S=SEQ[seqKey],n=S.actors.length,W=1000,pad=70,colW=(W-pad*2)/(n-1);
+  const topY=64,stepH=52,H=topY+40+S.steps.length*stepH+30;
+  seqSvg.setAttribute('viewBox',`0 0 ${W} ${H}`);seqSvg.innerHTML='';
+  const defs=el('defs',{},seqSvg);
+  const mk=el('marker',{id:'arr',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'},defs);
+  el('path',{d:'M0 0L10 5L0 10z',fill:'#7d8bb5'},mk);
+  const mkA=el('marker',{id:'arrA',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7.5,markerHeight:7.5,orient:'auto-start-reverse'},defs);
+  el('path',{d:'M0 0L10 5L0 10z',fill:'#e879f9'},mkA);
+  const xs=S.actors.map((_,i)=>pad+i*colW);
+  S.actors.forEach((a,i)=>{
+    const w=Math.min(170,colW-14);
+    el('rect',{x:xs[i]-w/2,y:14,width:w,height:36,rx:9,fill:'#131d3d',stroke:'#31427a'},seqSvg);
+    txt(seqSvg,xs[i],37,a,{'text-anchor':'middle','font-weight':700,'font-size':13,fill:'#a5d8f8'});
+    el('line',{x1:xs[i],y1:50,x2:xs[i],y2:H-16,stroke:'#243158','stroke-dasharray':'4 5','stroke-width':1.4},seqSvg);
+  });
+  S.steps.forEach((st,i)=>{
+    const y=topY+34+i*stepH,g=el('g',{'data-step':i,opacity:.22},seqSvg);
+    const x1=xs[st.a],x2=xs[st.b];
+    if(st.a===st.b){
+      el('path',{d:`M${x1} ${y-8} h46 v16 h-46`,fill:'none',stroke:'#7d8bb5','stroke-width':1.6,'marker-end':'url(#arr)',class:'msg'},g);
+      txt(g,x1+54,y+4,st.l,{x:x1+56,'font-size':12.5,class:'lbl'});
+    }else{
+      const dir=x2>x1?1:-1;
+      el('line',{x1,y1:y,x2:x2-dir*4,y2:y,stroke:'#7d8bb5','stroke-width':1.7,'marker-end':'url(#arr)',class:'msg'},g);
+      txt(g,(x1+x2)/2,y-8,st.l,{'text-anchor':'middle','font-size':12.5,class:'lbl'});
+    }
+    el('circle',{cx:x1,cy:y,r:9,fill:'#0e1630',stroke:'#31427a',class:'bub'},g);
+    txt(g,x1,y+4,String(i+1),{'text-anchor':'middle','font-size':10,fill:'#96a2c6','font-family':'monospace',class:'bubn'});
+  });
+  buildDots();setStep(-1,false);
+}
+function buildDots(){
+  const dots=document.getElementById('seqDots');dots.innerHTML='';
+  SEQ[seqKey].steps.forEach((_,i)=>{
+    const b=document.createElement('button');b.title='第 '+(i+1)+' 步';
+    b.addEventListener('click',()=>{stopPlay();setStep(i,true)});dots.appendChild(b);
+  });
+}
+function setStep(i,scrollCap){
+  seqStep=i;const S=SEQ[seqKey];
+  seqSvg.querySelectorAll('g[data-step]').forEach(g=>{
+    const k=+g.dataset.step;
+    g.setAttribute('opacity',k<=i?1:.2);
+    const msg=g.querySelector('.msg'),lbl=g.querySelector('.lbl'),bub=g.querySelector('.bub'),bn=g.querySelector('.bubn');
+    if(k===i){
+      msg.setAttribute('stroke','#e879f9');msg.setAttribute('stroke-width','2.4');
+      msg.setAttribute('marker-end','url(#arrA)');msg.setAttribute('stroke-dasharray','7 5');
+      msg.style.animation='flowdash .8s linear infinite';
+      lbl.setAttribute('fill','#f5d0fe');lbl.setAttribute('font-weight','700');
+      bub.setAttribute('stroke','#e879f9');bub.setAttribute('fill','#2a1240');bn.setAttribute('fill','#e879f9');
+    }else{
+      msg.setAttribute('stroke',k<i?'#6366f1':'#7d8bb5');msg.setAttribute('stroke-width','1.7');
+      msg.setAttribute('marker-end','url(#arr)');msg.removeAttribute('stroke-dasharray');msg.style.animation='';
+      lbl.setAttribute('fill',k<i?'#c7d2fe':'#e6ecfb');lbl.setAttribute('font-weight','400');
+      bub.setAttribute('stroke','#31427a');bub.setAttribute('fill','#0e1630');bn.setAttribute('fill','#96a2c6');
+    }
+  });
+  document.querySelectorAll('#seqDots button').forEach((b,k)=>{b.className=k<i?'done':k===i?'cur':''});
+  document.getElementById('seqProgress').textContent=`步骤 ${Math.max(0,i+1)} / ${S.steps.length}`;
+  const capT=document.getElementById('capT'),capD=document.getElementById('capD'),capN=document.getElementById('capN');
+  if(i<0){capN.textContent='READY';capT.textContent=S.title+' · 点击「播放」或「下一步」开始';capD.textContent='图中共 '+S.steps.length+' 步。横轴是参与者,纵轴是时间;箭头表示一次消息传递,回环箭头表示参与者内部动作。'}
+  else{const st=S.steps[i];capN.textContent='STEP '+(i+1)+'/'+S.steps.length;capT.textContent=st.l;capD.textContent=st.d}
+}
+function stopPlay(){if(seqTimer){clearInterval(seqTimer);seqTimer=null}document.getElementById('seqPlay').textContent='▶ 播放'}
+function startPlay(){
+  stopPlay();
+  if(seqStep>=SEQ[seqKey].steps.length-1)setStep(-1,false);
+  document.getElementById('seqPlay').textContent='⏸ 暂停';
+  const adv=()=>{if(seqStep>=SEQ[seqKey].steps.length-1){stopPlay();return}setStep(seqStep+1,true)};
+  adv();seqTimer=setInterval(adv,+document.getElementById('seqSpeed').value);
+}
+document.getElementById('seqPlay').addEventListener('click',()=>seqTimer?stopPlay():startPlay());
+document.getElementById('seqNext').addEventListener('click',()=>{stopPlay();setStep(Math.min(seqStep+1,SEQ[seqKey].steps.length-1),true)});
+document.getElementById('seqPrev').addEventListener('click',()=>{stopPlay();setStep(Math.max(seqStep-1,-1),true)});
+document.getElementById('seqReset').addEventListener('click',()=>{stopPlay();setStep(-1,false)});
+document.getElementById('seqSpeed').addEventListener('change',()=>{if(seqTimer)startPlay()});
+document.querySelectorAll('#seqTabs button').forEach(b=>b.addEventListener('click',()=>{
+  stopPlay();seqKey=b.dataset.s;
+  document.querySelectorAll('#seqTabs button').forEach(x=>x.classList.toggle('on',x===b));
+  buildSeq();
+}));
+buildSeq();
+
+/* ================= 特质浏览器 ================= */
+const traitList=document.getElementById('traitList'),traitDetail=document.getElementById('traitDetail');
+TRAITS.forEach((t,i)=>{
+  const b=document.createElement('button');
+  b.innerHTML=`<span>${t.n}</span><span class="en">${t.en}</span>`;
+  b.addEventListener('click',()=>selectTrait(i));traitList.appendChild(b);
+});
+function selectTrait(i){
+  const t=TRAITS[i];
+  [...traitList.children].forEach((b,k)=>b.classList.toggle('on',k===i));
+  traitDetail.innerHTML=`<h4>${t.n}</h4><span class="ten">userData.xr.${t.en}</span>
+    <div class="ana"><b>打个比方:</b>${t.ana}</div>
+    <pre></pre><div class="use"><b>典型用途:</b>${t.use}</div>`;
+  traitDetail.querySelector('pre').textContent=t.code;
+}
+selectTrait(0);
+
+/* ================= AI 闭环 ================= */
+const loopSvg=document.getElementById('loopSvg'),loopInfo=document.getElementById('loopInfo');
+const CX=260,CY=210,R=148;
+const pos=LOOP.map((_,i)=>{const a=-Math.PI/2+i*2*Math.PI/LOOP.length;return[CX+R*Math.cos(a),CY+R*Math.sin(a)]});
+(function buildLoop(){
+  const defs=el('defs',{},loopSvg);
+  const grad=el('linearGradient',{id:'lg',x1:'0%',y1:'0%',x2:'100%',y2:'100%'},defs);
+  el('stop',{offset:'0%','stop-color':'#38bdf8'},grad);el('stop',{offset:'50%','stop-color':'#e879f9'},grad);el('stop',{offset:'100%','stop-color':'#fbbf24'},grad);
+  el('circle',{cx:CX,cy:CY,r:R,fill:'none',stroke:'url(#lg)','stroke-width':2,'stroke-dasharray':'6 8',opacity:.55},loopSvg).style.animation='spin 40s linear infinite';
+  const st=document.createElement('style');st.textContent='@keyframes spin{to{transform:rotate(360deg)}}#loopSvg>circle{transform-origin:260px 210px}';document.head.appendChild(st);
+  for(let i=0;i<LOOP.length;i++){
+    const [x1,y1]=pos[i],[x2,y2]=pos[(i+1)%LOOP.length];
+    const mx=(x1+x2)/2,my=(y1+y2)/2,dx=mx-CX,dy=my-CY,dl=Math.hypot(dx,dy);
+    const bx=mx+dx/dl*22,by=my+dy/dl*22;
+    const shrink=(px,py,qx,qy,r)=>{const d=Math.hypot(qx-px,qy-py);return[px+(qx-px)/d*r,py+(qy-py)/d*r]};
+    const [sx,sy]=shrink(x1,y1,bx,by,44),[ex,ey]=shrink(x2,y2,bx,by,48);
+    el('path',{d:`M${sx} ${sy} Q${bx} ${by} ${ex} ${ey}`,fill:'none',stroke:'#31427a','stroke-width':2,'marker-end':'url(#arr)'},loopSvg);
+  }
+  const center=el('g',{},loopSvg);
+  txt(center,CX,CY-8,'AI 验证闭环',{'text-anchor':'middle','font-size':17,'font-weight':800,fill:'#e6ecfb'});
+  txt(center,CX,CY+16,'写 → 验 → 改 → 发布',{'text-anchor':'middle','font-size':12,fill:'#96a2c6'});
+  LOOP.forEach((s,i)=>{
+    const [x,y]=pos[i],g=el('g',{class:'loop-node','data-i':i},loopSvg);
+    el('circle',{cx:x,cy:y,r:40,fill:'#0e1630',stroke:s.c,'stroke-width':2,class:'hit'},g);
+    txt(g,x,y-2,s.ic,{'text-anchor':'middle','font-size':20});
+    txt(g,x,y+20,String(i+1),{'text-anchor':'middle','font-size':11,fill:s.c,'font-family':'monospace','font-weight':700});
+    const ly=y+(y>CY?60:-52);
+    txt(g,x,ly,s.t,{'text-anchor':'middle','font-size':13,'font-weight':700,fill:'#c4d2f0'});
+    g.addEventListener('click',()=>selectLoop(i));
+  });
+})();
+function selectLoop(i){
+  const s=LOOP[i];
+  loopSvg.querySelectorAll('.loop-node').forEach((g,k)=>{
+    const c=g.querySelector('.hit');
+    c.setAttribute('fill',k===i?'#182450':'#0e1630');
+    c.setAttribute('stroke-width',k===i?3.5:2);
+    c.style.filter=k===i?`drop-shadow(0 0 10px ${s.c})`:'';
+  });
+  loopInfo.innerHTML=`<div class="li-step">STEP ${i+1} / ${LOOP.length}</div><h4>${s.ic} ${s.t}</h4><p>${s.d}</p><div class="cmd"></div>`;
+  loopInfo.querySelector('.cmd').textContent=s.cmd;
+}
+selectLoop(0);
+</script>
+</body>
+</html>
